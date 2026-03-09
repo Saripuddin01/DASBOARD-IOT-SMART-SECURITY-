@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart IoT Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* --- TEMA DARK MODE IoT --- */
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #3b82f6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding: 20px; }
+
+        /* Header */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #334155; }
+        .header h1 { font-size: 24px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+        .status-badge { display: flex; align-items: center; gap: 8px; font-size: 14px; background: rgba(255,255,255,0.1); padding: 6px 15px; border-radius: 20px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 10px var(--danger); transition: 0.3s; }
+        .dot.online { background: var(--success); box-shadow: 0 0 10px var(--success); }
+         
+        /* Grid Layout */
+        .grid-container { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 1000px; margin: 0 auto; }
+        @media (min-width: 768px) { .grid-container { grid-template-columns: 1.5fr 1fr; } }
+
+        /* Card Style */
+        .card { background: var(--card-bg); border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .card-title { font-size: 16px; font-weight: 500; color: var(--text-muted); margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* --- CAMERA STREAM --- */
+        .camera-container { width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 12px; overflow: hidden; position: relative; display: flex; justify-content: center; align-items: center; border: 2px solid #334155; }
+        .camera-container img { width: 100%; height: 100%; object-fit: cover; }
+        .cam-offline-text { position: absolute; color: var(--text-muted); font-size: 14px; }
+
+        .cam-settings { display: flex; gap: 10px; margin-top: 15px; }
+        .cam-settings input { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; outline: none; }
+        .cam-settings button { padding: 10px 15px; border-radius: 8px; border: none; background: var(--primary); color: white; cursor: pointer; font-weight: bold; }
+        .cam-settings button:active { transform: scale(0.95); }
+
+        /* --- ANIMASI SENSOR GRID TAMPILAN BARU --- */
+        .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .sensor-box { background: rgba(0,0,0,0.2); padding: 25px 15px; border-radius: 12px; text-align: center; border: 1px solid #334155; display: flex; flex-direction: column; align-items: center; justify-content: center;}
+        
+        /* Animasi Termometer */
+        .thermo-container {
+            width: 24px; height: 80px; background: #0f172a; border: 2px solid #334155;
+            border-radius: 15px; margin-bottom: 15px; position: relative;
+            display: flex; align-items: flex-end; padding: 2px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
+        }
+        .thermo-fill {
+            width: 100%; height: 0%; background: var(--primary);
+            border-radius: 10px; transition: height 1s cubic-bezier(0.25, 0.8, 0.25, 1), background-color 1s ease;
+        }
+
+        /* Animasi Radar Gerak */
+        .radar-container {
+            width: 80px; height: 80px; border-radius: 50%;
+            border: 2px solid #334155; margin-bottom: 15px;
+            position: relative; overflow: hidden; 
+            background: repeating-radial-gradient(circle at center, transparent, transparent 10px, rgba(255,255,255,0.05) 10px, rgba(255,255,255,0.05) 11px);
+            transition: border-color 0.3s ease;
+        }
+        .radar-sweep {
+            position: absolute; top: 50%; left: 50%; width: 50%; height: 50%;
+            background: conic-gradient(from 0deg, transparent 70%, rgba(59, 130, 246, 0.8) 100%);
+            transform-origin: top left; animation: scan 3s linear infinite;
+        }
+        
+        /* Efek saat Radar Mendeteksi Gerakan (Alert) */
+        .radar-container.alert { border-color: var(--danger); box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+        .radar-container.alert .radar-sweep {
+            background: conic-gradient(from 0deg, transparent 70%, rgba(239, 68, 68, 1) 100%);
+            animation: scan 0.6s linear infinite; 
+        }
+        @keyframes scan { 100% { transform: rotate(360deg); } }
+
+        .sensor-value { font-size: 24px; font-weight: 700; color: var(--text-main); margin-bottom: 5px;}
+        .sensor-value.alert-text { color: var(--danger); }
+        .sensor-label { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px;}
+
+        /* --- RELAY CONTROLS --- */
+        .relay-list { display: flex; flex-direction: column; gap: 15px; }
+        .relay-item { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.2); padding: 15px 20px; border-radius: 12px; border: 1px solid #334155; }
+        .relay-name { font-size: 16px; font-weight: 500; display: flex; align-items: center; gap: 10px;}
+        
+        /* Toggle Switch bergaya iOS / Neon */
+        .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); box-shadow: 0 0 15px var(--primary); }
+        input:checked + .slider:before { transform: translateX(26px); }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🌐 Dasbor Keamanan Rumah</h1>
+        <div class="status-badge">
+            <div id="fb-status" class="dot"></div>
+            <span id="fb-text">Menghubungkan...</span>
+        </div>
+    </div>
+
+    <div class="grid-container">
+        
+        <div class="card">
+            <div class="card-title">📹 ESP32-CAM Live View</div>
+            <div class="camera-container">
+                <span class="cam-offline-text" id="cam-text">Kamera Offline / Masukkan IP</span>
+                <img id="camera-stream" src="" style="display: none;" onerror="cameraError()">
+            </div>
+            <div class="cam-settings">
+                <input type="text" id="cam-ip" placeholder="Contoh: http://192.168.1.10:81/stream">
+                <button onclick="connectCamera()">Konek</button>
+            </div>
+        </div>
+
+        <div>
+            <div class="sensor-grid">
+                
+                <div class="card sensor-box">
+                    <div class="thermo-container">
+                        <div class="thermo-fill" id="thermo-liquid"></div>
+                    </div>
+                    <div class="sensor-value" id="val-temp">0°C</div>
+                    <div class="sensor-label">Suhu Ruangan</div>
+                </div>
+
+                <div class="card sensor-box">
+                    <div class="radar-container" id="radar-box">
+                        <div class="radar-sweep"></div>
+                    </div>
+                    <div class="sensor-value" id="val-motion">Memantau...</div>
+                    <div class="sensor-label">Sensor Gerak</div>
+                </div>
+
+            </div>
+
+            <div class="card">
+                <div class="card-title">⚡ Kontrol Relay</div>
+                <div class="relay-list">
+                    
+                    <div class="relay-item">
+                        <div class="relay-name">💡 Lampu Utama</div>
+                        <label class="switch">
+                            <input type="checkbox" id="relay1" onchange="toggleRelay(1, this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="relay-item">
+                        <div class="relay-name">🔌 Stop Kontak</div>
+                        <label class="switch">
+                            <input type="checkbox" id="relay2" onchange="toggleRelay(2, this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="relay-item">
+                        <div class="relay-name">🚪 Solenoid Door</div>
+                        <label class="switch">
+                            <input type="checkbox" id="relay3" onchange="toggleRelay(3, this.checked)">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        // ==========================================
+        // 1. KONFIGURASI FIREBASE
+        // ==========================================
+        // GANTI BAGIAN INI DENGAN CONFIG FIREBASE KAMU
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyATTNNn1r1ORYTFWdljzd4dessh8t33SbI",
+  authDomain: "ppk-ormawa-42e49.firebaseapp.com",
+  databaseURL: "https://ppk-ormawa-42e49-default-rtdb.firebaseio.com",
+  projectId: "ppk-ormawa-42e49",
+  storageBucket: "ppk-ormawa-42e49.firebasestorage.app",
+  messagingSenderId: "629446223042",
+  appId: "1:629446223042:web:092fe22b2bdb868ba2c75b",
+  
+};
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Indikator Koneksi Firebase
+        firebase.database().ref(".info/connected").on("value", (snap) => {
+            const dot = document.getElementById('fb-status');
+            const text = document.getElementById('fb-text');
+            if (snap.val() === true) {
+                dot.classList.add('online'); text.innerText = "Sistem Online";
+            } else {
+                dot.classList.remove('online'); text.innerText = "Terputus";
+            }
+        });
+
+        // ==========================================
+        // 2. MENDENGARKAN DATA SENSOR (DARI ESP32)
+        // ==========================================
+        
+        // Logika Suhu & Animasi Cairan Termometer
+        db.ref('iot_data/sensors/temperature').on('value', (snapshot) => {
+            const temp = snapshot.val() || 0;
+            document.getElementById('val-temp').innerText = temp + "°C";
+
+            const thermoLiquid = document.getElementById('thermo-liquid');
+            
+            // Asumsi suhu maksimal adalah 50°C untuk tinggi penuh (100%)
+            let fillPercentage = (temp / 50) * 100; 
+            if (fillPercentage > 100) fillPercentage = 100; // Mentok di 100%
+            if (fillPercentage < 0) fillPercentage = 0;
+            
+            thermoLiquid.style.height = fillPercentage + "%";
+
+            // Logika Perubahan Warna Otomatis
+            if (temp < 20) {
+                thermoLiquid.style.backgroundColor = "#3b82f6"; // Biru (Dingin)
+            } else if (temp >= 20 && temp < 30) {
+                thermoLiquid.style.backgroundColor = "#10b981"; // Hijau (Normal/Sejuk)
+            } else if (temp >= 30 && temp < 35) {
+                thermoLiquid.style.backgroundColor = "#f59e0b"; // Oranye (Hangat)
+            } else {
+                thermoLiquid.style.backgroundColor = "#ef4444"; // Merah (Panas)
+            }
+        });
+
+        // Logika Sensor Gerak & Animasi Kecepatan Radar
+        db.ref('iot_data/sensors/motion').on('value', (snapshot) => {
+            const motion = snapshot.val();
+            const motionText = document.getElementById('val-motion');
+            const radarBox = document.getElementById('radar-box');
+
+            if (motion === true) {
+                motionText.innerText = "ADA GERAKAN!";
+                motionText.classList.add('alert-text');
+                radarBox.classList.add('alert'); // Ubah radar jadi merah & cepat
+            } else {
+                motionText.innerText = "Aman";
+                motionText.classList.remove('alert-text');
+                radarBox.classList.remove('alert'); // Radar kembali biru & pelan
+            }
+        });
+
+        // ==========================================
+        // 3. KONTROL RELAY BERSAMA (SINKRONISASI)
+        // ==========================================
+        // Membaca status relay saat ini dari Firebase
+        db.ref('iot_data/relays').on('value', (snapshot) => {
+            const relays = snapshot.val();
+            if (relays) {
+                document.getElementById('relay1').checked = relays.relay1 || false;
+                document.getElementById('relay2').checked = relays.relay2 || false;
+                document.getElementById('relay3').checked = relays.relay3 || false;
+            }
+        });
+
+        // Fungsi saat sakelar ditekan di web, kirim ke Firebase
+        function toggleRelay(relayNumber, status) {
+            db.ref(`iot_data/relays/relay${relayNumber}`).set(status)
+                .catch((error) => console.error("Gagal mengubah relay:", error));
+        }
+
+        // ==========================================
+        // 4. KONTROL VIDEO STREAM ESP32-CAM
+        // ==========================================
+        function connectCamera() {
+            const ipInput = document.getElementById('cam-ip').value;
+            const camStream = document.getElementById('camera-stream');
+            const camText = document.getElementById('cam-text');
+
+            if (ipInput.trim() !== "") {
+                camText.style.display = "none";
+                camStream.style.display = "block";
+                // Menambahkan timestamp agar browser tidak nge-cache gambar lama
+                camStream.src = ipInput + "?t=" + new Date().getTime(); 
+            }
+        }
+
+        function cameraError() {
+            document.getElementById('camera-stream').style.display = "none";
+            document.getElementById('cam-text').style.display = "block";
+            document.getElementById('cam-text').innerText = "Gagal terhubung ke Kamera. Cek IP!";
+        }
+    </script>
+</body>
+</html>
